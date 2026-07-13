@@ -3,6 +3,12 @@
   // Adjust this if your existing Cloudflare Worker/Pages project uses a different name.
   "name": "a-v-tb",
   "compatibility_date": "2026-07-13",
+  // Runs automatically before every `wrangler deploy`, so the Cloudflare
+  // dashboard's deploy command (`npx wrangler deploy`) produces dist/ itself
+  // even if no separate "Build command" is configured there.
+  "build": {
+    "command": "pnpm run build"
+  },
   "assets": {
     // Output directory produced by `vite build`.
     "directory": "./dist",
