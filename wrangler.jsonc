@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Adjust this if your existing Cloudflare Worker/Pages project uses a different name.
+  "name": "a-v-tb",
+  "compatibility_date": "2026-07-13",
+  "assets": {
+    // Output directory produced by `vite build`.
+    "directory": "./dist",
+    // Serve index.html for unmatched routes so client-side routing (and any
+    // deep-linked / unknown paths) works correctly for this single-page app.
+    "not_found_handling": "single-page-application"
+  }
+}
