@@ -159,9 +159,14 @@ export async function analyzeAudio(
   const sideIm = new Float32Array(FFT);
   const midMag = new Float32Array(FFT / 2 + 1);
   const sideMag = new Float32Array(FFT / 2 + 1);
-  let prevMid = new Float32Array(FFT / 2 + 1);
+  const prevMid = new Float32Array(FFT / 2 + 1);
 
   for (let fr = 0; fr < frames; fr++) {
+    // Yield to the event loop periodically so a full-track analysis doesn't
+    // freeze the UI (a 3-minute track is ~8k frames x 2 FFTs).
+    if (fr > 0 && fr % 512 === 0) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
     const start = fr * HOP;
     let rms = 0;
     for (let i = 0; i < FFT; i++) {
@@ -226,9 +231,7 @@ export async function analyzeAudio(
     }
     out.beat[fr] = beat;
 
-    const swap = prevMid;
-    prevMid = Float32Array.from(midMag);
-    void swap;
+    prevMid.set(midMag);
   }
 
   // Harmonic gate: normalize by 90th pct, soft-knee, gate vocal.
@@ -249,14 +252,15 @@ export async function analyzeAudio(
   out.slowLevel = Float32Array.from(out.level);
 
   // Asymmetric envelope followers (coefs per ~23 ms hop).
-  // Faster attack + release for a snappier, more responsive flame.
-  envelope(out.vocal, 0.7, 0.14);
-  envelope(out.beat, 0.95, 0.42);
-  envelope(out.flux, 0.9, 0.35);
-  envelope(out.level, 0.75, 0.18);
-  envelope(out.bass, 0.8, 0.26);
-  envelope(out.slowVocal, 0.16, 0.05);
-  envelope(out.slowLevel, 0.16, 0.05);
+  envelope(out.vocal, 0.45, 0.06);
+  envelope(out.beat, 0.8, 0.28); // punchy
+  envelope(out.flux, 0.7, 0.2);
+  envelope(out.level, 0.5, 0.08);
+  envelope(out.bass, 0.55, 0.12);
+  // Slow copies: ~0.3 s attack / ~1 s release — large-scale motion swells with
+  // phrases instead of flickering with syllables.
+  envelope(out.slowVocal, 0.08, 0.02);
+  envelope(out.slowLevel, 0.08, 0.02);
 
   const frameTime = HOP / sr;
   const duration = buf.duration;

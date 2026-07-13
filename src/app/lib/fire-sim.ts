@@ -63,6 +63,7 @@ export class FireSim {
   private tmp = new Float32Array(GRID_W * GRID_H);
   private acc = 0;
   private t = 0;
+  private scroll = 0;
   private seed: number;
 
   constructor(seed = Math.random() * 1000) {
@@ -74,6 +75,7 @@ export class FireSim {
     this.tmp.fill(0);
     this.acc = 0;
     this.t = 0;
+    this.scroll = 0;
   }
 
   private sampleHeat(x: number, y: number): number {
@@ -104,9 +106,11 @@ export class FireSim {
     const driveScalar =
       p.vocalFocus * drive.slowVocal + (1 - p.vocalFocus) * drive.slowLevel;
     const pulse = drive.vocal;
-    const scroll = this.t * (5 + 13 * p.rise) * 0.06;
     const baseRise =
       (5 + 13 * p.rise) * (0.75 + 0.45 * driveScalar * p.reactivity);
+    // scroll = t·baseRise·0.06, integrated so a moving drive can't jump the field.
+    this.scroll += baseRise * 0.06 * H;
+    const scroll = this.scroll;
     const cool = Math.exp(-(0.5 + 0.22 * (1 - driveScalar)) * H);
     const eps = 0.06;
 

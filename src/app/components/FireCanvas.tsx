@@ -10,7 +10,7 @@ import {
   FireSim,
   type FireParams,
 } from "../lib/fire-sim";
-import { FireRenderer } from "../lib/fire-render";
+import { FireRenderer, type PalettePreset } from "../lib/fire-render";
 
 export interface FireCanvasHandle {
   getCanvas: () => HTMLCanvasElement | null;
@@ -23,6 +23,7 @@ interface FireCanvasProps {
   hueShift?: number;
   blur?: number;
   outputBlur?: number;
+  palette?: PalettePreset;
   grey?: boolean;
   className?: string;
   style?: React.CSSProperties;
@@ -34,7 +35,7 @@ interface FireCanvasProps {
  */
 export const FireCanvas = forwardRef<FireCanvasHandle, FireCanvasProps>(
   function FireCanvas(
-    { getTime, sampleDrive, params, hueShift = 0, blur = 0, outputBlur = 0, grey = false, className, style },
+    { getTime, sampleDrive, params, hueShift = 0, blur = 0, outputBlur = 0, palette = "inferno", grey = false, className, style },
     ref,
   ) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -50,6 +51,7 @@ export const FireCanvas = forwardRef<FireCanvasHandle, FireCanvasProps>(
       hueShift,
       blur,
       outputBlur,
+      palette,
       grey,
     });
     propsRef.current = {
@@ -59,6 +61,7 @@ export const FireCanvas = forwardRef<FireCanvasHandle, FireCanvasProps>(
       hueShift,
       blur,
       outputBlur,
+      palette,
       grey,
     };
 
@@ -92,6 +95,7 @@ export const FireCanvas = forwardRef<FireCanvasHandle, FireCanvasProps>(
           outputBlur: cur.outputBlur,
           hueShift: cur.hueShift,
           drive: driveScalar,
+          palette: cur.palette,
           grey: cur.grey,
         });
 

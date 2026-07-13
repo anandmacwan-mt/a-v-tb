@@ -14,6 +14,7 @@ import defaultTrackUrl from "../../imports/Nowhere_Man__Remastered_2009_.mp3";
 import { useAudioEngine } from "../hooks/useAudioEngine";
 import { FireCanvas, type FireCanvasHandle } from "./FireCanvas";
 import type { FireParams } from "../lib/fire-sim";
+import type { PalettePreset } from "../lib/fire-render";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +38,11 @@ interface Controls extends FireParams {
   hueShift: number;
   blur: number;
   outputBlur: number;
+  exportCap: number; // max video recording length, seconds
+  palette: PalettePreset;
 }
+
+type NumericControl = Exclude<keyof Controls, "palette">;
 
 const DEFAULT_CONTROLS: Controls = {
   intensity: 1,
@@ -48,8 +53,12 @@ const DEFAULT_CONTROLS: Controls = {
   vocalFocus: 0.7,
   hueShift: 0,
   blur: 0,
-  outputBlur: 0,
+  outputBlur: 50,
+  exportCap: 60,
+  palette: "inferno",
 };
+
+const PALETTE_PRESETS: PalettePreset[] = ["inferno", "ember", "violet"];
 
 export function GradientPlayer() {
   const audio = useAudioEngine();
@@ -181,13 +190,36 @@ export function GradientPlayer() {
     toast("Recording… press again to stop.");
   }, [isRecording, hasTrack, getAudioStream, trackName, isPlaying, toggle]);
 
-  const setParam = (key: keyof Controls, value: number) =>
+  const setParam = (key: NumericControl, value: number) =>
     setCtrl((c) => ({ ...c, [key]: value }));
+
+  // Export length cap + stop when playback stops (pause or track end).
+  useEffect(() => {
+    if (!isRecording) return;
+    const id = setTimeout(
+      () => recorderRef.current?.stop(),
+      ctrl.exportCap * 1000,
+    );
+    return () => clearTimeout(id);
+  }, [isRecording, ctrl.exportCap]);
+
+  const recWasPlayingRef = useRef(false);
+  useEffect(() => {
+    if (!isRecording) {
+      recWasPlayingRef.current = false;
+      return;
+    }
+    if (isPlaying) recWasPlayingRef.current = true;
+    else if (recWasPlayingRef.current) recorderRef.current?.stop();
+  }, [isRecording, isPlaying]);
 
   return (
     <div className="relative flex h-[780px] max-h-[92vh] w-[390px] max-w-full flex-col overflow-hidden rounded-[12px] bg-black">
       {/* Fire display area */}
       <div className="group relative m-[16px] mb-0 flex-1 overflow-hidden rounded-[8px] bg-black">
+        {/* Centered, full-bleed. All softening happens inside the renderer
+            (clamp-to-edge post-blur), never via CSS filters — a CSS blur fades
+            the element's edges and needs transform hacks that break centering. */}
         <FireCanvas
           ref={fireRef}
           getTime={getTime}
@@ -196,10 +228,9 @@ export function GradientPlayer() {
           hueShift={ctrl.hueShift}
           blur={ctrl.blur}
           outputBlur={ctrl.outputBlur}
+          palette={ctrl.palette}
           grey={greyMode}
-          className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 object-cover"
-          // 50px blur; scale up so the blurred edges stay filled inside the frame.
-          style={{ filter: "blur(50px)", transform: "translate(-50%,-50%) scale(1.4)" }}
+          className="absolute inset-0 h-full w-full object-cover"
         />
 
         {!hasTrack && (
@@ -259,6 +290,27 @@ export function GradientPlayer() {
                 </span>
                 <Switch checked={greyMode} onCheckedChange={setGreyMode} />
               </div>
+              <div>
+                <div className="mb-1 font-['News_Gothic_Std:Medium',sans-serif] text-[11px] text-white/70">
+                  Palette
+                </div>
+                <div className="flex gap-1">
+                  {PALETTE_PRESETS.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setCtrl((c) => ({ ...c, palette: name }))}
+                      className={`flex-1 rounded-[6px] border px-1 py-1 font-['News_Gothic_Std:Medium',sans-serif] text-[10px] uppercase transition-colors ${
+                        ctrl.palette === name
+                          ? "border-white bg-white/15 text-white"
+                          : "border-white/20 text-white/60 hover:bg-white/10"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {(
                 [
                   ["intensity", "Intensity", 0, 2],
@@ -268,23 +320,28 @@ export function GradientPlayer() {
                   ["vocalFocus", "Vocal Focus", 0, 1],
                   ["breath", "Breath Rate", 0.2, 3],
                   ["blur", "Softness", 0, 4],
+                  ["outputBlur", "Output Blur", 0, 100],
                   ["hueShift", "Hue Shift", 0, 360],
-                ] as [keyof Controls, string, number, number][]
-              ).map(([key, label, min, max]) => (
-                <div key={key}>
-                  <div className="mb-1 flex justify-between font-['News_Gothic_Std:Medium',sans-serif] text-[11px] text-white/70">
-                    <span>{label}</span>
-                    <span>{ctrl[key].toFixed(key === "hueShift" ? 0 : 2)}</span>
+                  ["exportCap", "Export Cap (s)", 10, 180],
+                ] as [NumericControl, string, number, number][]
+              ).map(([key, label, min, max]) => {
+                const whole = key === "hueShift" || key === "exportCap";
+                return (
+                  <div key={key}>
+                    <div className="mb-1 flex justify-between font-['News_Gothic_Std:Medium',sans-serif] text-[11px] text-white/70">
+                      <span>{label}</span>
+                      <span>{ctrl[key].toFixed(whole ? 0 : 2)}</span>
+                    </div>
+                    <Slider
+                      value={[ctrl[key]]}
+                      min={min}
+                      max={max}
+                      step={whole ? 1 : 0.05}
+                      onValueChange={(v) => setParam(key, v[0])}
+                    />
                   </div>
-                  <Slider
-                    value={[ctrl[key]]}
-                    min={min}
-                    max={max}
-                    step={key === "hueShift" ? 1 : 0.05}
-                    onValueChange={(v) => setParam(key, v[0])}
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </PopoverContent>
         </Popover>
