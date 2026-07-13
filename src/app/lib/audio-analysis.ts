@@ -1,16 +1,23 @@
 // Precomputed audio feature analysis.
 // Decodes the whole track and extracts per-frame drive signals that can be
 // sampled at any time t via linear interpolation (enables seek-based export).
+//
+// The channel set mirrors TouchDesigner's audio-analysis palette: low/mid/high
+// band levels, kick/snare onset triggers, and a smoothed envelope — all
+// dB-scaled and normalized against the track's own dynamics, so quiet passages
+// still register and loud choruses don't pin every channel at 1.
 
 export interface Drive {
-  level: number;
-  bass: number;
-  highs: number;
+  low: number; // 20–150 Hz band level (kick / bass fundamentals)
+  mid: number; // 150–2000 Hz (body, vocals, snare)
+  high: number; // 2–16 kHz (cymbals, air)
+  kick: number; // low-band onset trigger (adaptive)
+  snare: number; // mid-band onset trigger (adaptive)
+  envelope: number; // smoothed full-mix loudness
   vocal: number; // fast vocal envelope ("pulse")
-  beat: number;
-  flux: number;
+  flux: number; // vocal-band onsets (consonants)
   slowVocal: number; // ~0.3s attack / ~1s release
-  slowLevel: number;
+  slowEnvelope: number;
 }
 
 export interface AudioFeatures {
@@ -79,6 +86,39 @@ function normalizeTo(arr: Float32Array, p: number) {
   }
 }
 
+// Perceptual band scaling: convert to dB, then map the track's own p20–p95
+// dynamic range onto [0,1]. Linear magnitudes make quiet passages read as
+// nothing; dB space is how loudness actually feels (and how TouchDesigner's
+// analysis channels behave).
+function dbNormalize(arr: Float32Array) {
+  for (let i = 0; i < arr.length; i++) {
+    arr[i] = 20 * Math.log10(arr[i] + 1e-6);
+  }
+  const lo = percentile(arr, 0.2);
+  const hi = percentile(arr, 0.95);
+  const range = Math.max(1e-3, hi - lo);
+  for (let i = 0; i < arr.length; i++) {
+    arr[i] = Math.min(1, Math.max(0, (arr[i] - lo) / range));
+  }
+}
+
+// Adaptive onset detection: subtract a running median (~0.7 s window) from the
+// rectified spectral flux, so a sustained rumble or busy mix doesn't raise the
+// trigger baseline — only true transients poke above it.
+function adaptiveOnset(arr: Float32Array, half = 15) {
+  const src = Float32Array.from(arr);
+  const buf: number[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const a = Math.max(0, i - half);
+    const b = Math.min(arr.length - 1, i + half);
+    buf.length = 0;
+    for (let j = a; j <= b; j++) buf.push(src[j]);
+    buf.sort((x, y) => x - y);
+    arr[i] = Math.max(0, src[i] - buf[buf.length >> 1]);
+  }
+  normalizeTo(arr, 0.95);
+}
+
 // Asymmetric one-pole envelope follower (in place).
 function envelope(arr: Float32Array, attack: number, release: number) {
   let env = 0;
@@ -132,24 +172,32 @@ export async function analyzeAudio(
     }
   }
 
-  const bassLo = binOf(20);
-  const bassHi = binOf(250);
+  // TouchDesigner-style band split.
+  const lowLo = binOf(20);
+  const lowHi = binOf(150);
+  const midLo = binOf(150);
+  const midHi = binOf(2000);
   const highLo = binOf(2000);
-  const highHi = binOf(8000);
+  const highHi = binOf(16000);
+  // Trigger + vocal bands.
+  const snareLo = binOf(300);
+  const snareHi = binOf(3000);
   const vocLo = binOf(200);
   const vocHi = binOf(4000);
   const hpsLo = binOf(85);
   const hpsHi = binOf(1000);
 
   const out: Record<keyof Drive, Float32Array> = {
-    level: new Float32Array(frames),
-    bass: new Float32Array(frames),
-    highs: new Float32Array(frames),
+    low: new Float32Array(frames),
+    mid: new Float32Array(frames),
+    high: new Float32Array(frames),
+    kick: new Float32Array(frames),
+    snare: new Float32Array(frames),
+    envelope: new Float32Array(frames),
     vocal: new Float32Array(frames),
-    beat: new Float32Array(frames),
     flux: new Float32Array(frames),
     slowVocal: new Float32Array(frames),
-    slowLevel: new Float32Array(frames),
+    slowEnvelope: new Float32Array(frames),
   };
   const harmonic = new Float32Array(frames);
 
@@ -160,6 +208,20 @@ export async function analyzeAudio(
   const midMag = new Float32Array(FFT / 2 + 1);
   const sideMag = new Float32Array(FFT / 2 + 1);
   const prevMid = new Float32Array(FFT / 2 + 1);
+
+  const bandMean = (a: number, b: number) => {
+    let s = 0;
+    for (let i = a; i <= b; i++) s += midMag[i];
+    return s / Math.max(1, b - a + 1);
+  };
+  const bandFlux = (a: number, b: number) => {
+    let s = 0;
+    for (let i = a; i <= b; i++) {
+      const d = midMag[i] - prevMid[i];
+      if (d > 0) s += d;
+    }
+    return s;
+  };
 
   for (let fr = 0; fr < frames; fr++) {
     // Yield to the event loop periodically so a full-track analysis doesn't
@@ -180,7 +242,7 @@ export async function analyzeAudio(
       sideRe[i] = side * win[i];
       sideIm[i] = 0;
     }
-    out.level[fr] = Math.sqrt(rms / FFT);
+    out.envelope[fr] = Math.sqrt(rms / FFT);
 
     fft(midRe, midIm);
     fft(sideRe, sideIm);
@@ -189,13 +251,9 @@ export async function analyzeAudio(
       sideMag[i] = Math.hypot(sideRe[i], sideIm[i]);
     }
 
-    // bass / highs = mean magnitude in band.
-    let bass = 0;
-    for (let i = bassLo; i <= bassHi; i++) bass += midMag[i];
-    out.bass[fr] = bass / Math.max(1, bassHi - bassLo);
-    let highs = 0;
-    for (let i = highLo; i <= highHi; i++) highs += midMag[i];
-    out.highs[fr] = highs / Math.max(1, highHi - highLo);
+    out.low[fr] = bandMean(lowLo, lowHi);
+    out.mid[fr] = bandMean(midLo, midHi);
+    out.high[fr] = bandMean(highLo, highHi);
 
     // vocal = center-channel energy, log-normal weighted.
     let vocal = 0;
@@ -217,19 +275,15 @@ export async function analyzeAudio(
     const mean = hpsSum / Math.max(1, hpsCount);
     harmonic[fr] = mean > 0 ? hpsPeak / mean : 0;
 
-    // flux (vocal band, weighted) & beat (bass band).
-    let flux = 0;
+    // Rectified spectral flux per trigger band.
+    out.kick[fr] = bandFlux(lowLo, lowHi);
+    out.snare[fr] = bandFlux(snareLo, snareHi);
+    let vflux = 0;
     for (let i = vocLo; i <= vocHi; i++) {
       const d = midMag[i] - prevMid[i];
-      if (d > 0) flux += d * w[i];
+      if (d > 0) vflux += d * w[i];
     }
-    out.flux[fr] = flux;
-    let beat = 0;
-    for (let i = bassLo; i <= bassHi; i++) {
-      const d = midMag[i] - prevMid[i];
-      if (d > 0) beat += d;
-    }
-    out.beat[fr] = beat;
+    out.flux[fr] = vflux;
 
     prevMid.set(midMag);
   }
@@ -242,25 +296,42 @@ export async function analyzeAudio(
     out.vocal[i] *= 0.3 + 0.7 * knee;
   }
 
-  // Normalize each curve to its own 95th percentile, clamp to [0,1].
-  (["level", "bass", "highs", "vocal", "beat", "flux"] as const).forEach((k) =>
-    normalizeTo(out[k], 0.95),
-  );
+  // Band levels + loudness: perceptual dB scaling against the track's own
+  // dynamic range.
+  dbNormalize(out.low);
+  dbNormalize(out.mid);
+  dbNormalize(out.high);
+  dbNormalize(out.envelope);
+
+  // Triggers: median-adaptive onset detection, then normalize.
+  adaptiveOnset(out.kick);
+  adaptiveOnset(out.snare);
+  adaptiveOnset(out.flux);
+
+  // Vocal: normalize to its 95th percentile, then a gentle perceptual lift so
+  // mid-level phrases still drive the visual.
+  normalizeTo(out.vocal, 0.95);
+  for (let i = 0; i < frames; i++) {
+    out.vocal[i] = Math.pow(out.vocal[i], 0.7);
+  }
 
   // Slow copies BEFORE fast envelopes overwrite (from normalized curves).
   out.slowVocal = Float32Array.from(out.vocal);
-  out.slowLevel = Float32Array.from(out.level);
+  out.slowEnvelope = Float32Array.from(out.envelope);
 
   // Asymmetric envelope followers (coefs per ~23 ms hop).
+  envelope(out.low, 0.55, 0.12);
+  envelope(out.mid, 0.5, 0.1);
+  envelope(out.high, 0.6, 0.15);
+  envelope(out.kick, 0.8, 0.28); // punchy
+  envelope(out.snare, 0.85, 0.3);
+  envelope(out.envelope, 0.5, 0.08);
   envelope(out.vocal, 0.45, 0.06);
-  envelope(out.beat, 0.8, 0.28); // punchy
   envelope(out.flux, 0.7, 0.2);
-  envelope(out.level, 0.5, 0.08);
-  envelope(out.bass, 0.55, 0.12);
   // Slow copies: ~0.3 s attack / ~1 s release — large-scale motion swells with
   // phrases instead of flickering with syllables.
   envelope(out.slowVocal, 0.08, 0.02);
-  envelope(out.slowLevel, 0.08, 0.02);
+  envelope(out.slowEnvelope, 0.08, 0.02);
 
   const frameTime = HOP / sr;
   const duration = buf.duration;
@@ -272,14 +343,16 @@ export async function analyzeAudio(
     const f = pos - i0;
     const lerp = (a: Float32Array) => a[i0] + (a[i1] - a[i0]) * f;
     return {
-      level: lerp(out.level),
-      bass: lerp(out.bass),
-      highs: lerp(out.highs),
+      low: lerp(out.low),
+      mid: lerp(out.mid),
+      high: lerp(out.high),
+      kick: lerp(out.kick),
+      snare: lerp(out.snare),
+      envelope: lerp(out.envelope),
       vocal: lerp(out.vocal),
-      beat: lerp(out.beat),
       flux: lerp(out.flux),
       slowVocal: lerp(out.slowVocal),
-      slowLevel: lerp(out.slowLevel),
+      slowEnvelope: lerp(out.slowEnvelope),
     };
   };
 
@@ -287,12 +360,14 @@ export async function analyzeAudio(
 }
 
 export const IDLE_DRIVE: Drive = {
-  level: 0,
-  bass: 0,
-  highs: 0,
+  low: 0,
+  mid: 0,
+  high: 0,
+  kick: 0,
+  snare: 0,
+  envelope: 0,
   vocal: 0,
-  beat: 0,
   flux: 0,
   slowVocal: 0,
-  slowLevel: 0,
+  slowEnvelope: 0,
 };

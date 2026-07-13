@@ -89,12 +89,17 @@ export const FireCanvas = forwardRef<FireCanvasHandle, FireCanvasProps>(
         simRef.current!.advance(dt, drive, p);
         const driveScalar =
           p.vocalFocus * drive.slowVocal +
-          (1 - p.vocalFocus) * drive.slowLevel;
+          (1 - p.vocalFocus) * drive.slowEnvelope;
         rendererRef.current!.render(simRef.current!.heat, canvas, {
           blur: cur.blur,
           outputBlur: cur.outputBlur,
           hueShift: cur.hueShift,
           drive: driveScalar,
+          bands: {
+            low: p.reactivity * drive.low,
+            mid: p.reactivity * drive.mid,
+            high: p.reactivity * drive.high,
+          },
           palette: cur.palette,
           grey: cur.grey,
         });

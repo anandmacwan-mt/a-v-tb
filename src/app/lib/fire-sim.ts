@@ -104,7 +104,7 @@ export class FireSim {
 
   private step(drive: Drive, p: FireParams) {
     const driveScalar =
-      p.vocalFocus * drive.slowVocal + (1 - p.vocalFocus) * drive.slowLevel;
+      p.vocalFocus * drive.slowVocal + (1 - p.vocalFocus) * drive.slowEnvelope;
     const pulse = drive.vocal;
     const baseRise =
       (5 + 13 * p.rise) * (0.75 + 0.45 * driveScalar * p.reactivity);
@@ -151,22 +151,27 @@ export class FireSim {
       p.intensity *
       Math.min(
         1.05,
-        idle + p.reactivity * (0.5 * drive.bass + 0.55 * driveScalar),
+        idle + p.reactivity * (0.5 * drive.low + 0.55 * driveScalar),
       );
 
-    // Five roaming Gaussian sources.
+    // Five roaming Gaussian sources, each tied to a band (low / mid / high /
+    // mid / low across the row) so the flame base reads as a soft, roaming
+    // spatial equalizer.
+    const bands = [drive.low, drive.mid, drive.high, drive.mid, drive.low];
     const src: { center: number; width: number; strength: number }[] = [];
     for (let k = 0; k < 5; k++) {
       const s = this.seed + k * 37.1;
       const center = 0.27 + 0.46 * vnoise(s, t * 0.1);
       const width = 0.06 + 0.07 * vnoise(s + 11, t * 0.13);
-      const strength = 0.35 + 0.65 * vnoise(s + 23, t * 0.09);
+      const band = Math.min(1, p.reactivity * bands[k]);
+      const strength = (0.35 + 0.65 * vnoise(s + 23, t * 0.09)) * (0.6 + 0.4 * band);
       src.push({ center, width, strength });
     }
 
-    // Beat flare column jumps every 0.5 s window.
-    const window = Math.floor(t / 0.5);
-    const beatCol = vnoise(this.seed + window * 3.7, 0.5);
+    // Kick flare column jumps every 0.5 s window; snare gets its own narrower,
+    // faster-jumping column (0.25 s windows).
+    const kickCol = vnoise(this.seed + Math.floor(t / 0.5) * 3.7, 0.5);
+    const snareCol = vnoise(this.seed + Math.floor(t / 0.25) * 5.3, 7.5);
     // Vocal core wandering center.
     const vocalCenter = 0.3 + 0.4 * vnoise(this.seed + 5, t * 0.05);
 
@@ -177,7 +182,8 @@ export class FireSim {
       for (const g of src) s += gauss(nx, g.center, g.width) * g.strength;
       const ragged = 0.62 + 0.46 * vnoise(x * 0.14, t * 0.3);
       s *= ragged * base;
-      s += gauss(nx, beatCol, 0.03) * p.reactivity * drive.beat * 0.8;
+      s += gauss(nx, kickCol, 0.03) * p.reactivity * drive.kick * 0.8;
+      s += gauss(nx, snareCol, 0.05) * p.reactivity * drive.snare * 0.5;
       s +=
         gauss(nx, vocalCenter, 0.15) *
         (1 + 0.5 * drive.flux + 0.35 * pulse) *

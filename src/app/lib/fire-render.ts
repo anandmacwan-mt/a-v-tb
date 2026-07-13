@@ -10,6 +10,9 @@ export interface RenderParams {
   outputBlur: number; // universal post-pass, px at output resolution
   hueShift: number; // degrees
   drive: number; // slow drive scalar, for saturation
+  // Band levels (0–1) mapped onto the ramp sections: low blooms the base,
+  // mid pushes body color up the plume, high unlocks the white-hot tips.
+  bands?: { low: number; mid: number; high: number };
   palette?: PalettePreset;
   grey?: boolean; // monochromatic mode
 }
@@ -144,7 +147,16 @@ export class FireRenderer {
     );
     this.midCtx.filter = "none";
 
-    // 3. Colorize per-pixel at 240x300.
+    // 3. Colorize per-pixel at 240x300. The section boundaries breathe with
+    // the band levels (already envelope-smoothed, so no strobing): low energy
+    // blooms the deep base outward, mids carry body color further up the
+    // plume, highs let peaks flash white-hot sooner.
+    const low = Math.min(1, p.bands?.low ?? 0);
+    const midBand = Math.min(1, p.bands?.mid ?? 0);
+    const high = Math.min(1, p.bands?.high ?? 0);
+    const t1 = 0.16 - 0.05 * low;
+    const t2 = 0.46 - 0.1 * midBand;
+    const t3 = 0.78 - 0.16 * high;
     const img = this.midCtx.getImageData(0, 0, MID_W, MID_H);
     const d = img.data;
     for (let y = 0; y < MID_H; y++) {
@@ -159,14 +171,14 @@ export class FireRenderer {
           out[0] = g;
           out[1] = g;
           out[2] = g;
-        } else if (h < 0.16) {
-          mix(pal.bg, pal.deep, smoothstep(0, 0.16, h) * 0.18, out);
-        } else if (h < 0.46) {
-          mix(pal.deep, pal.mid, smoothstep(0.16, 0.46, h), out);
-        } else if (h < 0.78) {
-          mix(pal.mid, pal.core, smoothstep(0.46, 0.78, h), out);
+        } else if (h < t1) {
+          mix(pal.bg, pal.deep, smoothstep(0, t1, h) * 0.18, out);
+        } else if (h < t2) {
+          mix(pal.deep, pal.mid, smoothstep(t1, t2, h), out);
+        } else if (h < t3) {
+          mix(pal.mid, pal.core, smoothstep(t2, t3, h), out);
         } else {
-          mix(pal.core, WHITE_HOT, smoothstep(0.78, 1, h), out);
+          mix(pal.core, WHITE_HOT, smoothstep(t3, 1, h), out);
         }
         d[o] = out[0] * vign;
         d[o + 1] = out[1] * vign;
