@@ -164,28 +164,42 @@ export class FireRenderer {
     // the band levels (already envelope-smoothed, so no strobing): low energy
     // blooms the deep base outward, mids carry body color further up the
     // plume, highs let peaks flash white-hot sooner.
+    // Base section proportions (heat thresholds) target the reference balance:
+    // plum fills the cool top ~half, red is the mid transition, orange the
+    // bottom ~third. Bands nudge these boundaries with the music.
     const low = Math.min(1, p.bands?.low ?? 0);
     const midBand = Math.min(1, p.bands?.mid ?? 0);
     const high = Math.min(1, p.bands?.high ?? 0);
-    const t1 = 0.16 - 0.05 * low;
-    const t2 = 0.46 - 0.1 * midBand;
-    const t3 = 0.78 - 0.16 * high;
+    const t1 = 0.12 - 0.04 * low; // plum -> red onset
+    const t2 = 0.34 - 0.08 * midBand; // red -> orange body
+    const t3 = 0.56 - 0.14 * high; // orange core / peaks
     const img = this.midCtx.getImageData(0, 0, MID_W, MID_H);
     const d = img.data;
     for (let y = 0; y < MID_H; y++) {
-      const vign = 0.66 + 0.34 * (y / MID_H);
+      const vy = y / MID_H;
+      const vign = 0.66 + 0.34 * vy;
+      // Vertical baseline gradient: the reference distribution is fundamentally
+      // a top-to-bottom ramp (plum ~top half -> red -> orange bottom third).
+      // The live flame heat rises ABOVE this baseline in the center column, so
+      // the full field shows the reference proportions while the plume breathes
+      // and licks on top. Power 3.5 keeps the top flat (plum) then climbs fast.
+      const baseline = 0.11 + 0.78 * Math.pow(vy, 3.5);
       for (let x = 0; x < MID_W; x++) {
         const o = (y * MID_W + x) * 4;
-        const h = d[o] / 140; // back to heat space
+        const flame = d[o] / 140; // back to heat space
+        const h = Math.max(baseline, flame);
         const out = this.tmp;
         if (p.grey) {
           // Monochromatic: black -> white ramp on smoothed heat.
-          const g = Math.min(1, h) * 255;
+          const g = Math.min(1, flame) * 255;
           out[0] = g;
           out[1] = g;
           out[2] = g;
         } else if (h < t1) {
-          mix(pal.bg, pal.deep, smoothstep(0, t1, h) * 0.18, out);
+          // Cool region ramps fully black -> plum so the plum reads as a large
+          // band across the top (vignette darkens the very top edge), rather
+          // than staying near-black.
+          mix(pal.bg, pal.deep, smoothstep(0, t1, h), out);
         } else if (h < t2) {
           mix(pal.deep, pal.mid, smoothstep(t1, t2, h), out);
         } else if (h < t3) {
