@@ -34,13 +34,14 @@ const PALETTES: Record<
     white: number[];
   }
 > = {
-  // Primary: single-color flame — every stop is #FF551D, peaks included
-  // (black background only for contrast).
+  // Primary: #FF551D → #FE1C13 → #291220 → #000000 (core→background). Peaks
+  // stay orange (white stop = core), so intensity reads through the ramp
+  // rather than blowing out to white.
   ember: {
-    bg: [0x00, 0x00, 0x00],
-    deep: ORANGE,
-    mid: ORANGE,
-    core: ORANGE,
+    bg: [0x00, 0x00, 0x00], // #000000
+    deep: [0x29, 0x12, 0x20], // #291220
+    mid: [0xfe, 0x1c, 0x13], // #FE1C13
+    core: ORANGE, // #FF551D
     white: ORANGE,
   },
   inferno: {
