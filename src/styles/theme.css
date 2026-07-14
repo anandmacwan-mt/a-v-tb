@@ -79,6 +79,9 @@
 }
 
 @theme inline {
+  /* Player typography — self-hosted design fonts (see fonts.css). */
+  --font-display: "OPTIVenus", "Franklin Gothic Medium", sans-serif;
+  --font-body: "News Gothic Std", "Franklin Gothic", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

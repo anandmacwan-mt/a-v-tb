@@ -242,7 +242,7 @@ export function GradientPlayer() {
             <span className="flex size-14 items-center justify-center rounded-full border border-white/40">
               <Upload className="size-6" />
             </span>
-            <span className="font-['News_Gothic_Std:Medium',sans-serif] text-[13px] uppercase tracking-wide">
+            <span className="font-body text-[13px] uppercase tracking-wide">
               Drop or choose an MP3
             </span>
           </button>
@@ -250,7 +250,7 @@ export function GradientPlayer() {
 
         {analyzing && (
           <div className="absolute inset-x-0 bottom-3 flex justify-center">
-            <span className="rounded-full bg-black/60 px-3 py-1 font-['News_Gothic_Std:Medium',sans-serif] text-[11px] uppercase text-white">
+            <span className="rounded-full bg-black/60 px-3 py-1 font-body text-[11px] uppercase text-white">
               Analyzing audio…
             </span>
           </div>
@@ -259,7 +259,7 @@ export function GradientPlayer() {
         {isRecording && (
           <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-white">
             <span className="size-2 animate-pulse rounded-full bg-white" />
-            <span className="font-['News_Gothic_Std:Medium',sans-serif] text-[11px] uppercase">
+            <span className="font-body text-[11px] uppercase">
               Recording
             </span>
           </div>
@@ -274,7 +274,7 @@ export function GradientPlayer() {
               aria-label="Simulation settings"
             >
               <Settings2 className="size-3.5" />
-              <span className="font-['News_Gothic_Std:Medium',sans-serif] text-[12px] uppercase">
+              <span className="font-body text-[12px] uppercase">
                 Adjust
               </span>
             </button>
@@ -285,13 +285,13 @@ export function GradientPlayer() {
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="font-['News_Gothic_Std:Medium',sans-serif] text-[12px] uppercase text-white">
+                <span className="font-body text-[12px] uppercase text-white">
                   Grey Mode
                 </span>
                 <Switch checked={greyMode} onCheckedChange={setGreyMode} />
               </div>
               <div>
-                <div className="mb-1 font-['News_Gothic_Std:Medium',sans-serif] text-[11px] text-white/70">
+                <div className="mb-1 font-body text-[11px] text-white/70">
                   Palette
                 </div>
                 <div className="flex gap-1">
@@ -300,7 +300,7 @@ export function GradientPlayer() {
                       key={name}
                       type="button"
                       onClick={() => setCtrl((c) => ({ ...c, palette: name }))}
-                      className={`flex-1 rounded-[6px] border px-1 py-1 font-['News_Gothic_Std:Medium',sans-serif] text-[10px] uppercase transition-colors ${
+                      className={`flex-1 rounded-[6px] border px-1 py-1 font-body text-[10px] uppercase transition-colors ${
                         ctrl.palette === name
                           ? "border-white bg-white/15 text-white"
                           : "border-white/20 text-white/60 hover:bg-white/10"
@@ -328,7 +328,7 @@ export function GradientPlayer() {
                 const whole = key === "hueShift" || key === "exportCap";
                 return (
                   <div key={key}>
-                    <div className="mb-1 flex justify-between font-['News_Gothic_Std:Medium',sans-serif] text-[11px] text-white/70">
+                    <div className="mb-1 flex justify-between font-body text-[11px] text-white/70">
                       <span>{label}</span>
                       <span>{ctrl[key].toFixed(whole ? 0 : 2)}</span>
                     </div>
@@ -349,10 +349,10 @@ export function GradientPlayer() {
 
       {/* Track meta — artist is always The Beatles */}
       <div className="px-6 pt-6 text-center">
-        <p className="font-['OPTIVenus:Bold',sans-serif] text-[18px] uppercase text-white">
+        <p className="font-display font-bold text-[18px] uppercase text-white">
           {trackName || "No Track Loaded"}
         </p>
-        <p className="mt-1 font-['News_Gothic_Std:Medium',sans-serif] text-[12px] text-white/70">
+        <p className="mt-1 font-body text-[12px] text-white">
           {ARTIST}
         </p>
       </div>
@@ -368,7 +368,7 @@ export function GradientPlayer() {
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <div className="mt-2 flex justify-between font-['News_Gothic_Std:Medium',sans-serif] text-[11px] text-white/60">
+        <div className="mt-2 flex justify-between font-body text-[11px] text-white/60">
           <span>{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
         </div>
@@ -386,7 +386,7 @@ export function GradientPlayer() {
           ) : (
             <Play className="size-3.5" />
           )}
-          <span className="font-['News_Gothic_Std:Medium',sans-serif] text-[12px] uppercase">
+          <span className="font-body text-[12px] uppercase">
             {isPlaying ? "Pause" : "Play"}
           </span>
         </button>
@@ -417,7 +417,7 @@ export function GradientPlayer() {
                   strokeLinejoin="round"
                 />
               </svg>
-              <span className="font-['News_Gothic_Std:Medium',sans-serif] text-[12px] uppercase">
+              <span className="font-body text-[12px] uppercase">
                 {isRecording ? "Stop" : "Export"}
               </span>
             </button>

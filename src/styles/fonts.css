@@ -1,0 +1,30 @@
+/* Typography for the player lockup — the genuine design fonts, self-hosted.
+ *
+ *   OPTIVenus Bold Extended -> song title  (weight 700)
+ *   News Gothic Std Regular -> artist + controls  (weight 400)
+ *
+ * A local() lookup is listed first so a machine with the fonts already
+ * installed uses those; otherwise the bundled OTF loads.
+ */
+
+@font-face {
+  font-family: "OPTIVenus";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    local("OPTIVenus Bold Extended"),
+    local("OPTIVenus"),
+    url("../assets/fonts/optivenus-bold-extended.otf") format("opentype");
+}
+
+@font-face {
+  font-family: "News Gothic Std";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local("News Gothic Std"),
+    local("News Gothic"),
+    url("../assets/fonts/news-gothic-std-regular.otf") format("opentype");
+}
