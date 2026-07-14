@@ -55,10 +55,10 @@ const DEFAULT_CONTROLS: Controls = {
   blur: 0,
   outputBlur: 50,
   exportCap: 60,
-  palette: "inferno",
+  palette: "ember",
 };
 
-const PALETTE_PRESETS: PalettePreset[] = ["inferno", "ember", "violet"];
+const PALETTE_PRESETS: PalettePreset[] = ["ember", "inferno", "violet"];
 
 export function GradientPlayer() {
   const audio = useAudioEngine();

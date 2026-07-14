@@ -17,35 +17,47 @@ export interface RenderParams {
   grey?: boolean; // monochromatic mode
 }
 
-// 4-stop palettes: [background, deep, mid, core]. Below 0.16 heat stays within
-// 18% of the background so bled heat maps to a DARK color (dynamic range);
-// above 0.78 blends core toward white ×0.85 (white-hot only at true peaks).
+// Palettes: [background, deep, mid, core, white]. Below the first threshold,
+// heat stays within 18% of the background so bled heat maps to a DARK color
+// (dynamic range); above the last, core blends toward the palette's white-hot
+// stop (only at true peaks).
+const WHITE_HOT = [255 * 0.85, 255 * 0.85, 255 * 0.85];
+const ORANGE = [0xff, 0x55, 0x1d];
+
 const PALETTES: Record<
   PalettePreset,
-  { bg: number[]; deep: number[]; mid: number[]; core: number[] }
+  {
+    bg: number[];
+    deep: number[];
+    mid: number[];
+    core: number[];
+    white: number[];
+  }
 > = {
+  // Primary: single-color flame — every stop is #FF551D, peaks included
+  // (black background only for contrast).
+  ember: {
+    bg: [0x00, 0x00, 0x00],
+    deep: ORANGE,
+    mid: ORANGE,
+    core: ORANGE,
+    white: ORANGE,
+  },
   inferno: {
     bg: [0x24, 0x18, 0x20],
     deep: [0x8e, 0x1b, 0x0a],
     mid: [0xff, 0x2e, 0x0e],
     core: [0xff, 0x8c, 0x2e],
-  },
-  // Single-color flame: every stop is #FF551D (black background for contrast).
-  ember: {
-    bg: [0x00, 0x00, 0x00],
-    deep: [0xff, 0x55, 0x1d],
-    mid: [0xff, 0x55, 0x1d],
-    core: [0xff, 0x55, 0x1d],
+    white: WHITE_HOT,
   },
   violet: {
     bg: [0x16, 0x10, 0x22],
     deep: [0x46, 0x1b, 0x7a],
     mid: [0x8e, 0x3b, 0xe0],
     core: [0xd0, 0x84, 0xff],
+    white: WHITE_HOT,
   },
 };
-
-const WHITE_HOT = [255 * 0.85, 255 * 0.85, 255 * 0.85];
 
 const MID_W = 240;
 const MID_H = 300;
@@ -178,7 +190,7 @@ export class FireRenderer {
         } else if (h < t3) {
           mix(pal.mid, pal.core, smoothstep(t2, t3, h), out);
         } else {
-          mix(pal.core, WHITE_HOT, smoothstep(t3, 1, h), out);
+          mix(pal.core, pal.white, smoothstep(t3, 1, h), out);
         }
         d[o] = out[0] * vign;
         d[o + 1] = out[1] * vign;

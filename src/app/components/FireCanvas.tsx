@@ -35,7 +35,7 @@ interface FireCanvasProps {
  */
 export const FireCanvas = forwardRef<FireCanvasHandle, FireCanvasProps>(
   function FireCanvas(
-    { getTime, sampleDrive, params, hueShift = 0, blur = 0, outputBlur = 0, palette = "inferno", grey = false, className, style },
+    { getTime, sampleDrive, params, hueShift = 0, blur = 0, outputBlur = 0, palette = "ember", grey = false, className, style },
     ref,
   ) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
